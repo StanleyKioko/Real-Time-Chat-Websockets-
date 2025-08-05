@@ -25,11 +25,9 @@ function Chat() {
 
   // Mock WebSocket connection
   useEffect(() => {
-    // Simulate connection delay
     const timer = setTimeout(() => {
       setIsConnected(true);
     }, 2000);
-
     return () => clearTimeout(timer);
   }, []);
 
@@ -79,21 +77,21 @@ function Chat() {
   const typingUsers = users.filter(user => user.isTyping);
 
   return (
-    <div className="min-h-screen bg-dark-100 text-dark-900">
+    <div className="min-h-screen bg-gray-900 text-gray-100">
       {/* Header */}
-      <header className="bg-dark-200 border-b border-dark-300 p-6">
-        <div className="max-w-6xl mx-auto">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-primary-500 rounded-lg flex items-center justify-center">
+      <header className="bg-gray-800 border-b border-gray-700 p-4 sm:p-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4">
+            <div className="flex items-center gap-3 mb-3 sm:mb-0">
+              <div className="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center">
                 <span className="text-white font-bold text-sm">🚀</span>
               </div>
-              <span className="text-primary-400 text-sm font-medium">WebSocket Showcase</span>
+              <span className="text-purple-400 text-sm font-medium">WebSocket Showcase</span>
             </div>
           </div>
           
-          <h1 className="text-4xl font-bold text-white mb-2">Real-Time Chat Demo</h1>
-          <p className="text-dark-700 text-lg">
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-2">Real-Time Chat Demo</h1>
+          <p className="text-gray-400 text-base lg:text-lg">
             Experience the power of WebSocket technology with this interactive chat application. 
             Connect, send messages, and see real-time updates in action.
           </p>
@@ -101,46 +99,46 @@ function Chat() {
       </header>
 
       {/* Features Section */}
-      <section className="bg-dark-200 border-b border-dark-300 py-8">
-        <div className="max-w-6xl mx-auto px-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="flex items-start gap-3">
-              <div className="w-8 h-8 bg-primary-500 rounded-lg flex items-center justify-center flex-shrink-0 mt-1">
+      <section className="bg-gray-800 border-b border-gray-700 py-6 sm:py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
+            <div className="flex items-start gap-3 p-3 bg-gray-700 rounded-lg">
+              <div className="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center flex-shrink-0 mt-1">
                 <span className="text-white text-sm">💬</span>
               </div>
-              <div>
-                <h3 className="text-white font-semibold mb-1">Real-Time Messaging</h3>
-                <p className="text-dark-700 text-sm">Instant message delivery with WebSocket connections</p>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-white font-semibold mb-1 text-sm lg:text-base">Real-Time Messaging</h3>
+                <p className="text-gray-400 text-xs lg:text-sm">Instant message delivery with WebSocket connections</p>
               </div>
             </div>
 
-            <div className="flex items-start gap-3">
-              <div className="w-8 h-8 bg-primary-500 rounded-lg flex items-center justify-center flex-shrink-0 mt-1">
+            <div className="flex items-start gap-3 p-3 bg-gray-700 rounded-lg">
+              <div className="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center flex-shrink-0 mt-1">
                 <span className="text-white text-sm">👥</span>
               </div>
-              <div>
-                <h3 className="text-white font-semibold mb-1">Live User Presence</h3>
-                <p className="text-dark-700 text-sm">See who's online and typing in real-time</p>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-white font-semibold mb-1 text-sm lg:text-base">Live User Presence</h3>
+                <p className="text-gray-400 text-xs lg:text-sm">See who's online and typing in real-time</p>
               </div>
             </div>
 
-            <div className="flex items-start gap-3">
-              <div className="w-8 h-8 bg-primary-500 rounded-lg flex items-center justify-center flex-shrink-0 mt-1">
+            <div className="flex items-start gap-3 p-3 bg-gray-700 rounded-lg">
+              <div className="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center flex-shrink-0 mt-1">
                 <span className="text-white text-sm">⌨️</span>
               </div>
-              <div>
-                <h3 className="text-white font-semibold mb-1">Typing Indicators</h3>
-                <p className="text-dark-700 text-sm">Visual feedback when users are composing messages</p>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-white font-semibold mb-1 text-sm lg:text-base">Typing Indicators</h3>
+                <p className="text-gray-400 text-xs lg:text-sm">Visual feedback when users are composing messages</p>
               </div>
             </div>
 
-            <div className="flex items-start gap-3">
-              <div className="w-8 h-8 bg-primary-500 rounded-lg flex items-center justify-center flex-shrink-0 mt-1">
+            <div className="flex items-start gap-3 p-3 bg-gray-700 rounded-lg">
+              <div className="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center flex-shrink-0 mt-1">
                 <span className="text-white text-sm">🔗</span>
               </div>
-              <div>
-                <h3 className="text-white font-semibold mb-1">Connection Status</h3>
-                <p className="text-dark-700 text-sm">Visual indicators for connection state management</p>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-white font-semibold mb-1 text-sm lg:text-base">Connection Status</h3>
+                <p className="text-gray-400 text-xs lg:text-sm">Visual indicators for connection state management</p>
               </div>
             </div>
           </div>
@@ -148,21 +146,21 @@ function Chat() {
       </section>
 
       {/* Chat Interface */}
-      <main className="max-w-6xl mx-auto p-6">
-        <div className="bg-dark-200 rounded-xl border border-dark-300 overflow-hidden">
+      <main className="max-w-7xl mx-auto p-4 sm:p-6">
+        <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
           {/* Connection Status */}
-          <div className="bg-dark-300 p-4 border-b border-dark-400">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
+          <div className="bg-gray-700 p-4 border-b border-gray-600">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex items-center gap-3 flex-wrap">
                 <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${
-                  isConnected ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'
+                  isConnected ? 'bg-green-800 text-green-300' : 'bg-red-800 text-red-300'
                 }`}>
                   <div className={`w-2 h-2 rounded-full ${
                     isConnected ? 'bg-green-400' : 'bg-red-400'
                   }`}></div>
                   {isConnected ? 'CONNECTED' : 'DISCONNECTED'}
                 </div>
-                <span className="text-dark-700">
+                <span className="text-gray-400 text-sm">
                   👥 {onlineUsersCount} online
                 </span>
               </div>
@@ -170,7 +168,7 @@ function Chat() {
               {!isConnected && (
                 <button
                   onClick={handleConnect}
-                  className="bg-primary-500 hover:bg-primary-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                  className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium transition-colors w-full sm:w-auto"
                 >
                   Connect
                 </button>
@@ -178,9 +176,9 @@ function Chat() {
             </div>
           </div>
 
-          <div className="flex h-96">
+          <div className="flex flex-col lg:flex-row h-96">
             {/* Messages Area */}
-            <div className="flex-1 flex flex-col">
+            <div className="flex-1 flex flex-col min-h-0">
               {/* Messages */}
               <div className="flex-1 p-4 overflow-y-auto space-y-4">
                 {messages.map((msg) => (
@@ -188,10 +186,10 @@ function Chat() {
                     key={msg.id}
                     className={`flex ${msg.user === 'You' ? 'justify-end' : 'justify-start'}`}
                   >
-                    <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+                    <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg break-words ${
                       msg.user === 'You'
-                        ? 'bg-primary-500 text-white'
-                        : 'bg-dark-300 text-dark-900'
+                        ? 'bg-purple-600 text-white'
+                        : 'bg-gray-700 text-gray-100'
                     }`}>
                       {msg.user !== 'You' && (
                         <div className="text-xs font-medium mb-1 opacity-75">{msg.user}</div>
@@ -205,7 +203,7 @@ function Chat() {
                 {/* Typing Indicators */}
                 {typingUsers.length > 0 && (
                   <div className="flex justify-start">
-                    <div className="bg-dark-300 text-dark-700 px-4 py-2 rounded-lg max-w-xs">
+                    <div className="bg-gray-700 text-gray-400 px-4 py-2 rounded-lg max-w-xs">
                       <div className="text-xs font-medium mb-1">
                         {typingUsers.map(user => user.name).join(', ')} 
                         {typingUsers.length === 1 ? ' is' : ' are'} typing
@@ -223,7 +221,7 @@ function Chat() {
               </div>
 
               {/* Message Input */}
-              <form onSubmit={handleSendMessage} className="p-4 border-t border-dark-400">
+              <form onSubmit={handleSendMessage} className="p-4 border-t border-gray-600">
                 <div className="flex gap-2">
                   <input
                     type="text"
@@ -231,34 +229,34 @@ function Chat() {
                     onChange={handleTyping}
                     placeholder={isConnected ? "Type your message..." : "Connect to start chatting"}
                     disabled={!isConnected}
-                    className="flex-1 bg-dark-300 border border-dark-400 rounded-lg px-4 py-2 text-dark-900 placeholder-dark-600 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                   <button
                     type="submit"
                     disabled={!isConnected || !newMessage.trim()}
-                    className="bg-primary-500 hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-2 rounded-lg font-medium transition-colors"
+                    className="bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 sm:px-6 py-2 rounded-lg font-medium transition-colors whitespace-nowrap"
                   >
                     Send
                   </button>
                 </div>
                 {isTyping && (
-                  <div className="text-xs text-dark-600 mt-2">You are typing...</div>
+                  <div className="text-xs text-gray-500 mt-2">You are typing...</div>
                 )}
               </form>
             </div>
 
             {/* Users Sidebar */}
-            <div className="w-64 bg-dark-300 border-l border-dark-400 p-4">
+            <div className="w-full lg:w-64 bg-gray-700 border-t lg:border-t-0 lg:border-l border-gray-600 p-4 max-h-48 lg:max-h-none overflow-y-auto">
               <h3 className="text-white font-semibold mb-4">Online Users ({onlineUsersCount})</h3>
               <div className="space-y-2">
                 {users.map((user) => (
-                  <div key={user.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-dark-400 transition-colors">
-                    <div className={`w-3 h-3 rounded-full ${
+                  <div key={user.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-600 transition-colors">
+                    <div className={`w-3 h-3 rounded-full flex-shrink-0 ${
                       user.isOnline ? 'bg-green-400' : 'bg-gray-500'
                     }`}></div>
-                    <span className="text-dark-900 text-sm">{user.name}</span>
+                    <span className="text-gray-100 text-sm flex-1 min-w-0 truncate">{user.name}</span>
                     {user.isTyping && (
-                      <div className="ml-auto">
+                      <div className="ml-auto flex-shrink-0">
                         <div className="typing-indicator scale-75">
                           <div className="typing-dot"></div>
                           <div className="typing-dot"></div>
