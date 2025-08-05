@@ -1,34 +1,108 @@
 import React, { useState, useEffect, useRef } from "react";
 
-// Mock data for demonstration
-const MOCK_USERS = [
-  { id: 1, name: "Alice", isOnline: true, isTyping: false },
-  { id: 2, name: "Bob", isOnline: true, isTyping: false },
-  { id: 3, name: "Charlie", isOnline: false, isTyping: false },
-  { id: 4, name: "Diana", isOnline: true, isTyping: true },
-];
-
-const MOCK_MESSAGES = [
-  { id: 1, user: "Alice", message: "Hey everyone! How's it going?", timestamp: new Date(Date.now() - 300000) },
-  { id: 2, user: "Bob", message: "Great! Just working on some new features.", timestamp: new Date(Date.now() - 240000) },
-  { id: 3, user: "You", message: "Same here! This WebSocket integration is pretty cool.", timestamp: new Date(Date.now() - 180000) },
-];
-
 function Chat() {
   const [isConnected, setIsConnected] = useState(false);
-  const [messages, setMessages] = useState(MOCK_MESSAGES);
-  const [users, setUsers] = useState(MOCK_USERS);
+  const [messages, setMessages] = useState([]);
+  const [users, setUsers] = useState([]);
   const [newMessage, setNewMessage] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [onlineCount, setOnlineCount] = useState(0);
+  const [userName, setUserName] = useState("");
+  const [hasSetName, setHasSetName] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState("Connecting...");
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
+  const wsRef = useRef(null);
 
-  // Mock WebSocket connection
+  // Connect to WebSocket server
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsConnected(true);
-    }, 2000);
-    return () => clearTimeout(timer);
+    const connectWebSocket = () => {
+      try {
+        console.log('🔄 Attempting to connect to WebSocket server...');
+        setConnectionStatus("Connecting...");
+        
+        const ws = new WebSocket('ws://localhost:8081');
+        wsRef.current = ws;
+
+        ws.onopen = () => {
+          console.log('✅ Connected to WebSocket server');
+          setIsConnected(true);
+          setConnectionStatus("Connected");
+        };
+
+        ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            console.log('📥 Received message:', data);
+
+            switch (data.type) {
+              case 'connection':
+                console.log('🎉 Connection established:', data.message);
+                setConnectionStatus("Connected to server");
+                break;
+              
+              case 'chat_message':
+                console.log('💬 New chat message:', data);
+                setMessages(prev => [...prev, {
+                  id: data.id,
+                  user: data.user,
+                  message: data.message,
+                  timestamp: new Date(data.timestamp)
+                }]);
+                break;
+              
+              case 'user_count':
+                console.log('👥 User count update:', data.count);
+                setOnlineCount(data.count);
+                break;
+              
+              case 'typing_status':
+                console.log('⌨️ Typing status:', data);
+                // Handle typing indicators from other users
+                break;
+              
+              default:
+                console.log('❓ Unknown message type:', data.type);
+            }
+          } catch (error) {
+            console.error('❌ Error parsing WebSocket message:', error);
+          }
+        };
+
+        ws.onclose = (event) => {
+          console.log('❌ WebSocket connection closed:', event.code, event.reason);
+          setIsConnected(false);
+          setConnectionStatus("Disconnected - Reconnecting...");
+          // Attempt to reconnect after 3 seconds
+          setTimeout(() => {
+            console.log('🔄 Attempting to reconnect...');
+            connectWebSocket();
+          }, 3000);
+        };
+
+        ws.onerror = (error) => {
+          console.error('💥 WebSocket error:', error);
+          setIsConnected(false);
+          setConnectionStatus("Connection failed");
+        };
+      } catch (error) {
+        console.error('💥 Failed to create WebSocket connection:', error);
+        setIsConnected(false);
+        setConnectionStatus("Failed to connect");
+        // Try to reconnect after 3 seconds
+        setTimeout(connectWebSocket, 3000);
+      }
+    };
+
+    connectWebSocket();
+
+    // Cleanup on component unmount
+    return () => {
+      if (wsRef.current) {
+        console.log('🧹 Cleaning up WebSocket connection');
+        wsRef.current.close();
+      }
+    };
   }, []);
 
   // Auto scroll to bottom
@@ -36,45 +110,128 @@ function Chat() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  const sendWebSocketMessage = (message) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      console.log('📤 Sending message:', message);
+      wsRef.current.send(JSON.stringify(message));
+      return true;
+    } else {
+      console.log('❌ Cannot send message - WebSocket not connected');
+      return false;
+    }
+  };
+
   const handleSendMessage = (e) => {
     e.preventDefault();
-    if (!newMessage.trim() || !isConnected) return;
+    if (!newMessage.trim() || !isConnected || !hasSetName) return;
 
     const message = {
-      id: Date.now(),
-      user: "You",
-      message: newMessage,
-      timestamp: new Date(),
+      type: 'chat_message',
+      user: userName,
+      message: newMessage.trim()
     };
 
-    setMessages(prev => [...prev, message]);
-    setNewMessage("");
-    setIsTyping(false);
+    if (sendWebSocketMessage(message)) {
+      setNewMessage("");
+      setIsTyping(false);
+
+      // Stop typing indicator
+      sendWebSocketMessage({
+        type: 'typing_stop'
+      });
+    }
   };
 
   const handleTyping = (e) => {
     setNewMessage(e.target.value);
     
-    if (!isTyping) {
+    if (!isTyping && hasSetName && isConnected) {
       setIsTyping(true);
+      sendWebSocketMessage({
+        type: 'typing_start'
+      });
     }
 
     clearTimeout(typingTimeoutRef.current);
     typingTimeoutRef.current = setTimeout(() => {
       setIsTyping(false);
+      if (hasSetName && isConnected) {
+        sendWebSocketMessage({
+          type: 'typing_stop'
+        });
+      }
     }, 1000);
   };
 
-  const handleConnect = () => {
-    setIsConnected(true);
+  const handleSetName = (e) => {
+    e.preventDefault();
+    if (userName.trim() && isConnected) {
+      setHasSetName(true);
+      sendWebSocketMessage({
+        type: 'user_info',
+        userInfo: { name: userName.trim() }
+      });
+    }
   };
 
   const formatTime = (timestamp) => {
     return timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  const onlineUsersCount = users.filter(user => user.isOnline).length;
-  const typingUsers = users.filter(user => user.isTyping);
+  // Show name input if not set
+  if (!hasSetName) {
+    return (
+      <div className="min-h-screen bg-gray-900 text-gray-100 flex items-center justify-center">
+        <div className="bg-gray-800 p-8 rounded-xl border border-gray-700 max-w-md w-full mx-4">
+          <div className="text-center mb-6">
+            <div className="w-16 h-16 bg-purple-600 rounded-lg flex items-center justify-center mx-auto mb-4">
+              <span className="text-white font-bold text-2xl">🚀</span>
+            </div>
+            <h1 className="text-2xl font-bold text-white mb-2">Join the Chat</h1>
+            <p className="text-gray-400">Enter your name to start chatting</p>
+          </div>
+          
+          <form onSubmit={handleSetName}>
+            <div className="mb-4">
+              <input
+                type="text"
+                value={userName}
+                onChange={(e) => setUserName(e.target.value)}
+                placeholder="Enter your name..."
+                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                maxLength={20}
+                required
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={!userName.trim() || !isConnected}
+              className="w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white py-3 rounded-lg font-medium transition-colors"
+            >
+              {isConnected ? 'Join Chat' : 'Connecting...'}
+            </button>
+          </form>
+          
+          <div className="mt-4 text-center">
+            <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm ${
+              isConnected ? 'bg-green-800 text-green-300' : 'bg-red-800 text-red-300'
+            }`}>
+              <div className={`w-2 h-2 rounded-full ${
+                isConnected ? 'bg-green-400' : 'bg-red-400'
+              }`}></div>
+              {connectionStatus}
+            </span>
+          </div>
+          
+          {/* Debug info */}
+          <div className="mt-4 text-xs text-gray-500 text-center">
+            <p>Debug: WebSocket State = {wsRef.current?.readyState || 'null'}</p>
+            <p>Connecting to: ws://localhost:8081</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100">
@@ -87,6 +244,9 @@ function Chat() {
                 <span className="text-white font-bold text-sm">🚀</span>
               </div>
               <span className="text-purple-400 text-sm font-medium">WebSocket Showcase</span>
+            </div>
+            <div className="text-sm text-gray-400">
+              Welcome, <span className="text-white font-medium">{userName}</span>!
             </div>
           </div>
           
@@ -161,18 +321,9 @@ function Chat() {
                   {isConnected ? 'CONNECTED' : 'DISCONNECTED'}
                 </div>
                 <span className="text-gray-400 text-sm">
-                  👥 {onlineUsersCount} online
+                  👥 {onlineCount} online
                 </span>
               </div>
-              
-              {!isConnected && (
-                <button
-                  onClick={handleConnect}
-                  className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium transition-colors w-full sm:w-auto"
-                >
-                  Connect
-                </button>
-              )}
             </div>
           </div>
 
@@ -181,40 +332,34 @@ function Chat() {
             <div className="flex-1 flex flex-col min-h-0">
               {/* Messages */}
               <div className="flex-1 p-4 overflow-y-auto space-y-4">
-                {messages.map((msg) => (
-                  <div
-                    key={msg.id}
-                    className={`flex ${msg.user === 'You' ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg break-words ${
-                      msg.user === 'You'
-                        ? 'bg-purple-600 text-white'
-                        : 'bg-gray-700 text-gray-100'
-                    }`}>
-                      {msg.user !== 'You' && (
-                        <div className="text-xs font-medium mb-1 opacity-75">{msg.user}</div>
-                      )}
-                      <div className="text-sm">{msg.message}</div>
-                      <div className="text-xs opacity-75 mt-1">{formatTime(msg.timestamp)}</div>
-                    </div>
+                {messages.length === 0 ? (
+                  <div className="text-center text-gray-500 py-8">
+                    <p>No messages yet. Start the conversation!</p>
+                    {!isConnected && (
+                      <p className="text-red-400 text-sm mt-2">
+                        ⚠️ Not connected to server. Check console for details.
+                      </p>
+                    )}
                   </div>
-                ))}
-
-                {/* Typing Indicators */}
-                {typingUsers.length > 0 && (
-                  <div className="flex justify-start">
-                    <div className="bg-gray-700 text-gray-400 px-4 py-2 rounded-lg max-w-xs">
-                      <div className="text-xs font-medium mb-1">
-                        {typingUsers.map(user => user.name).join(', ')} 
-                        {typingUsers.length === 1 ? ' is' : ' are'} typing
-                      </div>
-                      <div className="typing-indicator">
-                        <div className="typing-dot"></div>
-                        <div className="typing-dot"></div>
-                        <div className="typing-dot"></div>
+                ) : (
+                  messages.map((msg) => (
+                    <div
+                      key={msg.id}
+                      className={`flex ${msg.user === userName ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg break-words ${
+                        msg.user === userName
+                          ? 'bg-purple-600 text-white'
+                          : 'bg-gray-700 text-gray-100'
+                      }`}>
+                        {msg.user !== userName && (
+                          <div className="text-xs font-medium mb-1 opacity-75">{msg.user}</div>
+                        )}
+                        <div className="text-sm">{msg.message}</div>
+                        <div className="text-xs opacity-75 mt-1">{formatTime(msg.timestamp)}</div>
                       </div>
                     </div>
-                  </div>
+                  ))
                 )}
 
                 <div ref={messagesEndRef} />
@@ -227,7 +372,7 @@ function Chat() {
                     type="text"
                     value={newMessage}
                     onChange={handleTyping}
-                    placeholder={isConnected ? "Type your message..." : "Connect to start chatting"}
+                    placeholder={isConnected ? "Type your message..." : "Connecting to server..."}
                     disabled={!isConnected}
                     className="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
                   />
@@ -247,25 +392,18 @@ function Chat() {
 
             {/* Users Sidebar */}
             <div className="w-full lg:w-64 bg-gray-700 border-t lg:border-t-0 lg:border-l border-gray-600 p-4 max-h-48 lg:max-h-none overflow-y-auto">
-              <h3 className="text-white font-semibold mb-4">Online Users ({onlineUsersCount})</h3>
+              <h3 className="text-white font-semibold mb-4">Online Users ({onlineCount})</h3>
               <div className="space-y-2">
-                {users.map((user) => (
-                  <div key={user.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-600 transition-colors">
-                    <div className={`w-3 h-3 rounded-full flex-shrink-0 ${
-                      user.isOnline ? 'bg-green-400' : 'bg-gray-500'
-                    }`}></div>
-                    <span className="text-gray-100 text-sm flex-1 min-w-0 truncate">{user.name}</span>
-                    {user.isTyping && (
-                      <div className="ml-auto flex-shrink-0">
-                        <div className="typing-indicator scale-75">
-                          <div className="typing-dot"></div>
-                          <div className="typing-dot"></div>
-                          <div className="typing-dot"></div>
-                        </div>
-                      </div>
-                    )}
+                {onlineCount > 0 ? (
+                  <div className="flex items-center gap-3 p-2 rounded-lg">
+                    <div className="w-3 h-3 rounded-full flex-shrink-0 bg-green-400"></div>
+                    <span className="text-gray-100 text-sm flex-1 min-w-0 truncate">{userName} (You)</span>
                   </div>
-                ))}
+                ) : (
+                  <div className="text-gray-500 text-sm">
+                    {isConnected ? "No users online" : "Connecting..."}
+                  </div>
+                )}
               </div>
             </div>
           </div>
