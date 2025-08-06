@@ -1,21 +1,45 @@
 import React, { useState, useEffect, useRef } from "react";
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { auth } from '../firebase';
+import Auth from './Auth';
 
 function Chat() {
+  const [user, setUser] = useState(null);
+  const [idToken, setIdToken] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [isConnected, setIsConnected] = useState(false);
   const [messages, setMessages] = useState([]);
-  const [users, setUsers] = useState([]);
   const [newMessage, setNewMessage] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [onlineCount, setOnlineCount] = useState(0);
-  const [userName, setUserName] = useState("");
-  const [hasSetName, setHasSetName] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState("Connecting...");
+  const [authenticated, setAuthenticated] = useState(false);
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const wsRef = useRef(null);
 
+  // Monitor authentication state
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        const token = await user.getIdToken();
+        setUser(user);
+        setIdToken(token);
+      } else {
+        setUser(null);
+        setIdToken(null);
+        setAuthenticated(false);
+      }
+      setAuthLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
   // Connect to WebSocket server
   useEffect(() => {
+    if (!user || !idToken) return;
+
     const connectWebSocket = () => {
       try {
         console.log('Attempting to connect to WebSocket server...');
@@ -28,6 +52,12 @@ function Chat() {
           console.log('Connected to WebSocket server');
           setIsConnected(true);
           setConnectionStatus("Connected");
+          
+          // Authenticate with Firebase token
+          ws.send(JSON.stringify({
+            type: 'authenticate',
+            idToken: idToken
+          }));
         };
 
         ws.onmessage = (event) => {
@@ -40,14 +70,28 @@ function Chat() {
                 console.log('Connection established:', data.message);
                 setConnectionStatus("Connected to server");
                 break;
+
+              case 'authentication_success':
+                console.log('Authentication successful:', data.user);
+                setAuthenticated(true);
+                setConnectionStatus("Authenticated and Connected");
+                break;
+
+              case 'authentication_error':
+                console.error('Authentication failed:', data.message);
+                setConnectionStatus("Authentication failed");
+                setAuthenticated(false);
+                break;
               
               case 'chat_message':
                 console.log('New chat message:', data);
                 setMessages(prev => [...prev, {
                   id: data.id,
                   user: data.user,
+                  userEmail: data.userEmail,
                   message: data.message,
-                  timestamp: new Date(data.timestamp)
+                  timestamp: new Date(data.timestamp),
+                  senderUid: data.senderUid
                 }]);
                 break;
               
@@ -59,6 +103,10 @@ function Chat() {
               case 'typing_status':
                 console.log('Typing status:', data);
                 // Handle typing indicators from other users
+                break;
+
+              case 'error':
+                console.error('Server error:', data.message);
                 break;
               
               default:
@@ -72,6 +120,7 @@ function Chat() {
         ws.onclose = (event) => {
           console.log('WebSocket connection closed:', event.code, event.reason);
           setIsConnected(false);
+          setAuthenticated(false);
           setConnectionStatus("Disconnected - Reconnecting...");
           // Attempt to reconnect after 3 seconds
           setTimeout(() => {
@@ -83,11 +132,13 @@ function Chat() {
         ws.onerror = (error) => {
           console.error('WebSocket error:', error);
           setIsConnected(false);
+          setAuthenticated(false);
           setConnectionStatus("Connection failed");
         };
       } catch (error) {
         console.error('Failed to create WebSocket connection:', error);
         setIsConnected(false);
+        setAuthenticated(false);
         setConnectionStatus("Failed to connect");
         // Try to reconnect after 3 seconds
         setTimeout(connectWebSocket, 3000);
@@ -103,31 +154,48 @@ function Chat() {
         wsRef.current.close();
       }
     };
-  }, []);
+  }, [user, idToken]);
 
   // Auto scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  const handleAuthSuccess = (firebaseUser, token) => {
+    setUser(firebaseUser);
+    setIdToken(token);
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut(auth);
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
+      setMessages([]);
+      setOnlineCount(0);
+    } catch (error) {
+      console.error('Sign out error:', error);
+    }
+  };
+
   const sendWebSocketMessage = (message) => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && authenticated) {
       console.log('Sending message:', message);
       wsRef.current.send(JSON.stringify(message));
       return true;
     } else {
-      console.log('Cannot send message - WebSocket not connected');
+      console.log('Cannot send message - WebSocket not connected or not authenticated');
       return false;
     }
   };
 
   const handleSendMessage = (e) => {
     e.preventDefault();
-    if (!newMessage.trim() || !isConnected || !hasSetName) return;
+    if (!newMessage.trim() || !authenticated) return;
 
     const message = {
       type: 'chat_message',
-      user: userName,
       message: newMessage.trim()
     };
 
@@ -145,7 +213,7 @@ function Chat() {
   const handleTyping = (e) => {
     setNewMessage(e.target.value);
     
-    if (!isTyping && hasSetName && isConnected) {
+    if (!isTyping && authenticated) {
       setIsTyping(true);
       sendWebSocketMessage({
         type: 'typing_start'
@@ -155,7 +223,7 @@ function Chat() {
     clearTimeout(typingTimeoutRef.current);
     typingTimeoutRef.current = setTimeout(() => {
       setIsTyping(false);
-      if (hasSetName && isConnected) {
+      if (authenticated) {
         sendWebSocketMessage({
           type: 'typing_stop'
         });
@@ -163,75 +231,30 @@ function Chat() {
     }, 1000);
   };
 
-  const handleSetName = (e) => {
-    e.preventDefault();
-    if (userName.trim() && isConnected) {
-      setHasSetName(true);
-      sendWebSocketMessage({
-        type: 'user_info',
-        userInfo: { name: userName.trim() }
-      });
-    }
-  };
-
   const formatTime = (timestamp) => {
     return timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  // Show name input if not set
-  if (!hasSetName) {
+  // Show loading while checking authentication
+  if (authLoading) {
     return (
       <div className="min-h-screen bg-gray-900 text-gray-100 flex items-center justify-center">
-        <div className="bg-gray-800 p-8 rounded-xl border border-gray-700 max-w-md w-full mx-4">
-          <div className="text-center mb-6">
-            <div className="w-16 h-16 bg-purple-600 rounded-lg flex items-center justify-center mx-auto mb-4">
-              <span className="text-white font-bold text-2xl">🚀</span>
-            </div>
-            <h1 className="text-2xl font-bold text-white mb-2">Join the Chat</h1>
-            <p className="text-gray-400">Enter your name to start chatting</p>
+        <div className="text-center">
+          <div className="w-16 h-16 bg-purple-600 rounded-lg flex items-center justify-center mx-auto mb-4">
+            <span className="text-white font-bold text-2xl">🔄</span>
           </div>
-          
-          <form onSubmit={handleSetName}>
-            <div className="mb-4">
-              <input
-                type="text"
-                value={userName}
-                onChange={(e) => setUserName(e.target.value)}
-                placeholder="Enter your name..."
-                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                maxLength={20}
-                required
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={!userName.trim() || !isConnected}
-              className="w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white py-3 rounded-lg font-medium transition-colors"
-            >
-              {isConnected ? 'Join Chat' : 'Connecting...'}
-            </button>
-          </form>
-          
-          <div className="mt-4 text-center">
-            <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm ${
-              isConnected ? 'bg-green-800 text-green-300' : 'bg-red-800 text-red-300'
-            }`}>
-              <div className={`w-2 h-2 rounded-full ${
-                isConnected ? 'bg-green-400' : 'bg-red-400'
-              }`}></div>
-              {connectionStatus}
-            </span>
-          </div>
-          
-          {/* Debug info */}
-          <div className="mt-4 text-xs text-gray-500 text-center">
-            <p>Debug: WebSocket State = {wsRef.current?.readyState || 'null'}</p>
-            <p>Connecting to: ws://localhost:8081</p>
-          </div>
+          <p className="text-gray-400">Loading...</p>
         </div>
       </div>
     );
   }
+
+  // Show authentication screen if not signed in
+  if (!user) {
+    return <Auth onAuthSuccess={handleAuthSuccess} />;
+  }
+
+  const displayName = user.displayName || user.email?.split('@')[0] || 'Anonymous';
 
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100">
@@ -245,65 +268,25 @@ function Chat() {
               </div>
               <span className="text-purple-400 text-sm font-medium">WebSocket Showcase</span>
             </div>
-            <div className="text-sm text-gray-400">
-              Welcome, <span className="text-white font-medium">{userName}</span>!
+            <div className="flex items-center gap-4">
+              <div className="text-sm text-gray-400">
+                Welcome, <span className="text-white font-medium">{displayName}</span>!
+              </div>
+              <button
+                onClick={handleSignOut}
+                className="text-sm bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-lg transition-colors"
+              >
+                Sign Out
+              </button>
             </div>
           </div>
           
-          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-2">Real-Time Chat Demo</h1>
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-2">Authenticated Real-Time Chat</h1>
           <p className="text-gray-400 text-base lg:text-lg">
-            Experience the power of WebSocket technology with this interactive chat application. 
-            Connect, send messages, and see real-time updates in action.
+            Secure WebSocket chat with Firebase Authentication. Only authenticated users can participate.
           </p>
         </div>
       </header>
-
-      {/* Features Section */}
-      <section className="bg-gray-800 border-b border-gray-700 py-6 sm:py-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
-            <div className="flex items-start gap-3 p-3 bg-gray-700 rounded-lg">
-              <div className="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center flex-shrink-0 mt-1">
-                <span className="text-white text-sm"></span>
-              </div>
-              <div className="min-w-0 flex-1">
-                <h3 className="text-white font-semibold mb-1 text-sm lg:text-base">Real-Time Messaging</h3>
-                <p className="text-gray-400 text-xs lg:text-sm">Instant message delivery with WebSocket connections</p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-3 p-3 bg-gray-700 rounded-lg">
-              <div className="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center flex-shrink-0 mt-1">
-                <span className="text-white text-sm"></span>
-              </div>
-              <div className="min-w-0 flex-1">
-                <h3 className="text-white font-semibold mb-1 text-sm lg:text-base">Live User Presence</h3>
-                <p className="text-gray-400 text-xs lg:text-sm">See who's online and typing in real-time</p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-3 p-3 bg-gray-700 rounded-lg">
-              <div className="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center flex-shrink-0 mt-1">
-                <span className="text-white text-sm"></span>
-              </div>
-              <div className="min-w-0 flex-1">
-                <h3 className="text-white font-semibold mb-1 text-sm lg:text-base">Typing Indicators</h3>
-                <p className="text-gray-400 text-xs lg:text-sm">Visual feedback when users are composing messages</p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-3 p-3 bg-gray-700 rounded-lg">
-              <div className="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center flex-shrink-0 mt-1">
-                <span className="text-white text-sm"></span>
-              </div>
-              <div className="min-w-0 flex-1">
-                <h3 className="text-white font-semibold mb-1 text-sm lg:text-base">Connection Status</h3>
-                <p className="text-gray-400 text-xs lg:text-sm">Visual indicators for connection state management</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
 
       {/* Chat Interface */}
       <main className="max-w-7xl mx-auto p-4 sm:p-6">
@@ -313,15 +296,15 @@ function Chat() {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div className="flex items-center gap-3 flex-wrap">
                 <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${
-                  isConnected ? 'bg-green-800 text-green-300' : 'bg-red-800 text-red-300'
+                  authenticated ? 'bg-green-800 text-green-300' : 'bg-yellow-800 text-yellow-300'
                 }`}>
                   <div className={`w-2 h-2 rounded-full ${
-                    isConnected ? 'bg-green-400' : 'bg-red-400'
+                    authenticated ? 'bg-green-400' : 'bg-yellow-400'
                   }`}></div>
-                  {isConnected ? 'CONNECTED' : 'DISCONNECTED'}
+                  {authenticated ? 'AUTHENTICATED' : 'CONNECTING'}
                 </div>
                 <span className="text-gray-400 text-sm">
-                  {onlineCount} online
+                  {onlineCount} authenticated users online
                 </span>
               </div>
             </div>
@@ -335,9 +318,9 @@ function Chat() {
                 {messages.length === 0 ? (
                   <div className="text-center text-gray-500 py-8">
                     <p>No messages yet. Start the conversation!</p>
-                    {!isConnected && (
-                      <p className="text-red-400 text-sm mt-2">
-                        ⚠️ Not connected to server. Check console for details.
+                    {!authenticated && (
+                      <p className="text-yellow-400 text-sm mt-2">
+                        ⚠️ Authenticating with server...
                       </p>
                     )}
                   </div>
@@ -345,14 +328,14 @@ function Chat() {
                   messages.map((msg) => (
                     <div
                       key={msg.id}
-                      className={`flex ${msg.user === userName ? 'justify-end' : 'justify-start'}`}
+                      className={`flex ${msg.senderUid === user.uid ? 'justify-end' : 'justify-start'}`}
                     >
                       <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg break-words ${
-                        msg.user === userName
+                        msg.senderUid === user.uid
                           ? 'bg-purple-600 text-white'
                           : 'bg-gray-700 text-gray-100'
                       }`}>
-                        {msg.user !== userName && (
+                        {msg.senderUid !== user.uid && (
                           <div className="text-xs font-medium mb-1 opacity-75">{msg.user}</div>
                         )}
                         <div className="text-sm">{msg.message}</div>
@@ -372,13 +355,13 @@ function Chat() {
                     type="text"
                     value={newMessage}
                     onChange={handleTyping}
-                    placeholder={isConnected ? "Type your message..." : "Connecting to server..."}
-                    disabled={!isConnected}
+                    placeholder={authenticated ? "Type your message..." : "Authenticating..."}
+                    disabled={!authenticated}
                     className="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                   <button
                     type="submit"
-                    disabled={!isConnected || !newMessage.trim()}
+                    disabled={!authenticated || !newMessage.trim()}
                     className="bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 sm:px-6 py-2 rounded-lg font-medium transition-colors whitespace-nowrap"
                   >
                     Send
@@ -392,16 +375,16 @@ function Chat() {
 
             {/* Users Sidebar */}
             <div className="w-full lg:w-64 bg-gray-700 border-t lg:border-t-0 lg:border-l border-gray-600 p-4 max-h-48 lg:max-h-none overflow-y-auto">
-              <h3 className="text-white font-semibold mb-4">Online Users ({onlineCount})</h3>
+              <h3 className="text-white font-semibold mb-4">Authenticated Users ({onlineCount})</h3>
               <div className="space-y-2">
                 {onlineCount > 0 ? (
                   <div className="flex items-center gap-3 p-2 rounded-lg">
                     <div className="w-3 h-3 rounded-full flex-shrink-0 bg-green-400"></div>
-                    <span className="text-gray-100 text-sm flex-1 min-w-0 truncate">{userName} (You)</span>
+                    <span className="text-gray-100 text-sm flex-1 min-w-0 truncate">{displayName} (You)</span>
                   </div>
                 ) : (
                   <div className="text-gray-500 text-sm">
-                    {isConnected ? "No users online" : "Connecting..."}
+                    {authenticated ? "No other users online" : "Connecting..."}
                   </div>
                 )}
               </div>
