@@ -18,14 +18,14 @@ function Chat() {
   useEffect(() => {
     const connectWebSocket = () => {
       try {
-        console.log('🔄 Attempting to connect to WebSocket server...');
+        console.log('Attempting to connect to WebSocket server...');
         setConnectionStatus("Connecting...");
         
         const ws = new WebSocket('ws://localhost:8081');
         wsRef.current = ws;
 
         ws.onopen = () => {
-          console.log('✅ Connected to WebSocket server');
+          console.log('Connected to WebSocket server');
           setIsConnected(true);
           setConnectionStatus("Connected");
         };
@@ -33,16 +33,16 @@ function Chat() {
         ws.onmessage = (event) => {
           try {
             const data = JSON.parse(event.data);
-            console.log('📥 Received message:', data);
+            console.log('Received message:', data);
 
             switch (data.type) {
               case 'connection':
-                console.log('🎉 Connection established:', data.message);
+                console.log('Connection established:', data.message);
                 setConnectionStatus("Connected to server");
                 break;
               
               case 'chat_message':
-                console.log('💬 New chat message:', data);
+                console.log('New chat message:', data);
                 setMessages(prev => [...prev, {
                   id: data.id,
                   user: data.user,
@@ -52,41 +52,41 @@ function Chat() {
                 break;
               
               case 'user_count':
-                console.log('👥 User count update:', data.count);
+                console.log('User count update:', data.count);
                 setOnlineCount(data.count);
                 break;
               
               case 'typing_status':
-                console.log('⌨️ Typing status:', data);
+                console.log('Typing status:', data);
                 // Handle typing indicators from other users
                 break;
               
               default:
-                console.log('❓ Unknown message type:', data.type);
+                console.log('Unknown message type:', data.type);
             }
           } catch (error) {
-            console.error('❌ Error parsing WebSocket message:', error);
+            console.error('Error parsing WebSocket message:', error);
           }
         };
 
         ws.onclose = (event) => {
-          console.log('❌ WebSocket connection closed:', event.code, event.reason);
+          console.log('WebSocket connection closed:', event.code, event.reason);
           setIsConnected(false);
           setConnectionStatus("Disconnected - Reconnecting...");
           // Attempt to reconnect after 3 seconds
           setTimeout(() => {
-            console.log('🔄 Attempting to reconnect...');
+            console.log('Attempting to reconnect...');
             connectWebSocket();
           }, 3000);
         };
 
         ws.onerror = (error) => {
-          console.error('💥 WebSocket error:', error);
+          console.error('WebSocket error:', error);
           setIsConnected(false);
           setConnectionStatus("Connection failed");
         };
       } catch (error) {
-        console.error('💥 Failed to create WebSocket connection:', error);
+        console.error('Failed to create WebSocket connection:', error);
         setIsConnected(false);
         setConnectionStatus("Failed to connect");
         // Try to reconnect after 3 seconds
@@ -112,11 +112,11 @@ function Chat() {
 
   const sendWebSocketMessage = (message) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      console.log('📤 Sending message:', message);
+      console.log('Sending message:', message);
       wsRef.current.send(JSON.stringify(message));
       return true;
     } else {
-      console.log('❌ Cannot send message - WebSocket not connected');
+      console.log('Cannot send message - WebSocket not connected');
       return false;
     }
   };
@@ -264,7 +264,7 @@ function Chat() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
             <div className="flex items-start gap-3 p-3 bg-gray-700 rounded-lg">
               <div className="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center flex-shrink-0 mt-1">
-                <span className="text-white text-sm">💬</span>
+                <span className="text-white text-sm"></span>
               </div>
               <div className="min-w-0 flex-1">
                 <h3 className="text-white font-semibold mb-1 text-sm lg:text-base">Real-Time Messaging</h3>
@@ -274,7 +274,7 @@ function Chat() {
 
             <div className="flex items-start gap-3 p-3 bg-gray-700 rounded-lg">
               <div className="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center flex-shrink-0 mt-1">
-                <span className="text-white text-sm">👥</span>
+                <span className="text-white text-sm"></span>
               </div>
               <div className="min-w-0 flex-1">
                 <h3 className="text-white font-semibold mb-1 text-sm lg:text-base">Live User Presence</h3>
@@ -284,7 +284,7 @@ function Chat() {
 
             <div className="flex items-start gap-3 p-3 bg-gray-700 rounded-lg">
               <div className="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center flex-shrink-0 mt-1">
-                <span className="text-white text-sm">⌨️</span>
+                <span className="text-white text-sm"></span>
               </div>
               <div className="min-w-0 flex-1">
                 <h3 className="text-white font-semibold mb-1 text-sm lg:text-base">Typing Indicators</h3>
@@ -294,7 +294,7 @@ function Chat() {
 
             <div className="flex items-start gap-3 p-3 bg-gray-700 rounded-lg">
               <div className="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center flex-shrink-0 mt-1">
-                <span className="text-white text-sm">🔗</span>
+                <span className="text-white text-sm"></span>
               </div>
               <div className="min-w-0 flex-1">
                 <h3 className="text-white font-semibold mb-1 text-sm lg:text-base">Connection Status</h3>
@@ -321,7 +321,7 @@ function Chat() {
                   {isConnected ? 'CONNECTED' : 'DISCONNECTED'}
                 </div>
                 <span className="text-gray-400 text-sm">
-                  👥 {onlineCount} online
+                  {onlineCount} online
                 </span>
               </div>
             </div>
